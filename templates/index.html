@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ titulo }} | Atenciones médicas</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <header class="cabecera">
+        <div class="contenedor marca">Atenciones médicas</div>
+        <nav class="contenedor navegacion" aria-label="Secciones">
+            <a href="{{ url_for('pacientes') }}" {% if seccion == 'pacientes' %}aria-current="page"{% endif %}>Pacientes</a>
+            <a href="{{ url_for('medicos') }}" {% if seccion == 'medicos' %}aria-current="page"{% endif %}>Médicos</a>
+            <a href="{{ url_for('atenciones') }}" {% if seccion == 'atenciones' %}aria-current="page"{% endif %}>Atenciones</a>
+            <a href="{{ url_for('atenciones_vigentes') }}" {% if seccion == 'vigentes' %}aria-current="page"{% endif %}>Atenciones vigentes</a>
+        </nav>
+    </header>
+
+    <main class="contenedor">
+        <h1>{{ titulo }}</h1>
+
+        {% if mensaje %}
+            <p class="aviso" role="alert">{{ mensaje }}</p>
+        {% endif %}
+
+        {% if seccion in ('pacientes', 'medicos', 'atenciones') %}
+            {% if request.args.get('guardado') == '1' and id_edicion is none %}
+                <p class="aviso" role="status">Registro guardado.</p>
+            {% endif %}
+            {% if seccion == 'pacientes' %}
+                {% set entidad = 'paciente' %}
+                {% set volver = url_for('pacientes') %}
+            {% elif seccion == 'medicos' %}
+                {% set entidad = 'médico' %}
+                {% set volver = url_for('medicos') %}
+            {% else %}
+                {% set entidad = 'atención' %}
+                {% set volver = url_for('atenciones') %}
+            {% endif %}
+
+            <section class="tarjeta">
+                <h2>{{ 'Editar' if id_edicion is not none else 'Registrar' }} {{ entidad }}
+                    {% if id_edicion is not none %}<span class="id-edicion">N.º {{ id_edicion }}</span>{% endif %}
+                </h2>
+                {% if error %}
+                    <p class="aviso error" role="alert">{{ error }}</p>
+                {% endif %}
+                {% if seccion == 'atenciones' and (not opciones_pacientes or not opciones_medicos) %}
+                    <p class="ayuda">Para registrar una atención, primero registra un
+                        <a href="{{ url_for('pacientes') }}">paciente</a> y un
+                        <a href="{{ url_for('medicos') }}">médico</a>.
+                    </p>
+                {% else %}
+                    {# El formulario se envía por POST a la URL que lo mostró. #}
+                    <form method="post">
+                        <div class="campos">
+                            {% if seccion == 'pacientes' %}
+                                <label>RUT
+                                    <input name="rut" maxlength="16" value="{{ formulario.get('rut', '') }}" required>
+                                </label>
+                                <label>Nombre
+                                    <input name="nombre" maxlength="150" value="{{ formulario.get('nombre', '') }}" required>
+                                </label>
+                                <label>Teléfono
+                                    <input type="tel" name="telefono" maxlength="30" value="{{ formulario.get('telefono', '') }}" required>
+                                </label>
+                            {% elif seccion == 'medicos' %}
+                                <label>Nombre
+                                    <input name="nombre" maxlength="150" value="{{ formulario.get('nombre', '') }}" required>
+                                </label>
+                                <label>Especialidad
+                                    <input name="especialidad" maxlength="120" value="{{ formulario.get('especialidad', '') }}" required>
+                                </label>
+                                <label>Teléfono
+                                    <input type="tel" name="telefono" maxlength="30" value="{{ formulario.get('telefono', '') }}" required>
+                                </label>
+                            {% else %}
+                                <label>Paciente
+                                    <select name="id_paciente" required>
+                                        <option value="">Selecciona un paciente</option>
+                                        {% for paciente in opciones_pacientes %}
+                                            <option value="{{ paciente.id_paciente }}"{% if formulario.get('id_paciente')|string == paciente.id_paciente|string %} selected{% endif %}>
+                                                {{ paciente.nombre }} ({{ paciente.rut }})
+                                            </option>
+                                        {% endfor %}
+                                    </select>
+                                </label>
+                                <label>Médico
+                                    <select name="id_medico" required>
+                                        <option value="">Selecciona un médico</option>
+                                        {% for medico in opciones_medicos %}
+                                            <option value="{{ medico.id_medico }}"{% if formulario.get('id_medico')|string == medico.id_medico|string %} selected{% endif %}>
+                                                {{ medico.nombre }} ({{ medico.especialidad }})
+                                            </option>
+                                        {% endfor %}
+                                    </select>
+                                </label>
+                                <label>Costo
+                                    <input type="number" name="costo" min="0" max="9999999999.99" step="0.01" value="{{ formulario.get('costo', '') }}" required>
+                                </label>
+                                <label>Fecha de atención
+                                    <input type="date" name="fecha_atencion" value="{{ formulario.get('fecha_atencion', '') }}" required>
+                                </label>
+                                <label>Fecha de alta <span class="opcional">(opcional)</span>
+                                    <input type="date" name="fecha_alta" value="{{ formulario.get('fecha_alta') or '' }}">
+                                </label>
+                                <label class="ancho-completo">Diagnóstico
+                                    <textarea name="diagnostico" rows="2" required>{{ formulario.get('diagnostico', '') }}</textarea>
+                                </label>
+                            {% endif %}
+                        </div>
+                        <div class="acciones">
+                            {% if id_edicion is not none %}
+                                <button type="submit">Guardar cambios</button>
+                                <a href="{{ volver }}">Cancelar</a>
+                            {% else %}
+                                <button type="submit">Registrar {{ entidad }}</button>
+                            {% endif %}
+                        </div>
+                    </form>
+                {% endif %}
+            </section>
+        {% endif %}
+
+        {% if seccion %}
+            <section class="tarjeta">
+                {% if seccion == 'vigentes' %}
+                    <p class="ayuda descripcion">Atenciones que todavía no tienen fecha de alta.</p>
+                {% else %}
+                    <h2>Registros de {{ titulo|lower }}</h2>
+                {% endif %}
+
+                {% if registros %}
+                    <div class="tabla-desplazable" tabindex="0" role="region" aria-label="{{ titulo }}">
+                        {% if seccion == 'pacientes' %}
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th scope="col">ID</th>
+                                        <th scope="col">RUT</th>
+                                        <th scope="col">Nombre</th>
+                                        <th scope="col">Teléfono</th>
+                                        <th scope="col" class="col-accion">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for paciente in registros %}
+                                        <tr>
+                                            <td>{{ paciente.id_paciente }}</td>
+                                            <td class="sin-salto">{{ paciente.rut }}</td>
+                                            <td>{{ paciente.nombre }}</td>
+                                            <td class="sin-salto">{{ paciente.telefono }}</td>
+                                            <td class="col-accion"><a class="editar" href="{{ url_for('pacientes', id_paciente=paciente.id_paciente) }}" aria-label="Editar paciente {{ paciente.nombre }}">Editar</a></td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        {% elif seccion == 'medicos' %}
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th scope="col">ID</th>
+                                        <th scope="col">Nombre</th>
+                                        <th scope="col">Especialidad</th>
+                                        <th scope="col">Teléfono</th>
+                                        <th scope="col" class="col-accion">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for medico in registros %}
+                                        <tr>
+                                            <td>{{ medico.id_medico }}</td>
+                                            <td>{{ medico.nombre }}</td>
+                                            <td>{{ medico.especialidad }}</td>
+                                            <td class="sin-salto">{{ medico.telefono }}</td>
+                                            <td class="col-accion"><a class="editar" href="{{ url_for('medicos', id_medico=medico.id_medico) }}" aria-label="Editar médico {{ medico.nombre }}">Editar</a></td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        {% elif seccion == 'atenciones' %}
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th scope="col">ID</th>
+                                        <th scope="col">Paciente</th>
+                                        <th scope="col">Médico</th>
+                                        <th scope="col">Fecha de atención</th>
+                                        <th scope="col">Fecha de alta</th>
+                                        <th scope="col">Diagnóstico</th>
+                                        <th scope="col">Costo</th>
+                                        <th scope="col" class="col-accion">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for atencion in registros %}
+                                        <tr>
+                                            <td>{{ atencion.id_atencion }}</td>
+                                            <td>{{ atencion.paciente }}<small>ID {{ atencion.id_paciente }}</small></td>
+                                            <td>{{ atencion.medico }}<small>ID {{ atencion.id_medico }}</small></td>
+                                            <td class="sin-salto">{{ atencion.fecha_atencion.strftime('%d/%m/%Y') }}</td>
+                                            <td class="sin-salto">{{ atencion.fecha_alta.strftime('%d/%m/%Y') if atencion.fecha_alta else 'Sin alta' }}</td>
+                                            <td>{{ atencion.diagnostico }}</td>
+                                            <td class="sin-salto">{{ atencion.costo }}</td>
+                                            <td class="col-accion"><a class="editar" href="{{ url_for('atenciones', id_atencion=atencion.id_atencion) }}" aria-label="Editar atención {{ atencion.id_atencion }}">Editar</a></td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        {% else %}
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th scope="col">Paciente</th>
+                                        <th scope="col">Médico</th>
+                                        <th scope="col">Especialidad</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for atencion in registros %}
+                                        <tr>
+                                            <td>{{ atencion.paciente }}</td>
+                                            <td>{{ atencion.medico }}</td>
+                                            <td>{{ atencion.especialidad }}</td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        {% endif %}
+                    </div>
+                {% else %}
+                    <p class="vacio">{{ 'No hay atenciones vigentes.' if seccion == 'vigentes' else 'Todavía no hay registros.' }}</p>
+                {% endif %}
+            </section>
+        {% endif %}
+    </main>
+</body>
+</html>
